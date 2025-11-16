@@ -18,14 +18,16 @@ This Python script allows you to check the ETH and rETH balances of an Ethereum 
 ## Installation
 
 1. Clone this repository:
+
    ```
    git clone https://github.com/yourusername/ethereum-balance-checker.git
    cd ethereum-balance-checker
    ```
 
-2. Install the required packages:
+2. Install the required dependencies:
+
    ```
-   pip install -r requirements.txt
+   uv sync
    ```
 
 3. Create a `.env` file in the project root and add your Infura URL and default values:
@@ -54,6 +56,7 @@ python eth_balance.py -e
 ## Output
 
 The script will display:
+
 - ETH balance
 - rETH balance
 - ETH equivalent of the rETH balance
