@@ -20,8 +20,8 @@ This Python script allows you to check the ETH and rETH balances of an Ethereum 
 1. Clone this repository:
 
    ```
-   git clone https://github.com/yourusername/ethereum-balance-checker.git
-   cd ethereum-balance-checker
+   git clone https://github.com/cmeyke/getreth.git
+   cd getreth
    ```
 
 2. Install the required dependencies:
