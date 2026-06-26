@@ -12,8 +12,8 @@ This Python script allows you to check the ETH and rETH balances of an Ethereum 
 
 ## Prerequisites
 
-- Python 3.6+
-- pip (Python package installer)
+- Python 3.13+
+- [uv](https://docs.astral.sh/uv/) (or `pip`)
 
 ## Installation
 
@@ -39,18 +39,23 @@ This Python script allows you to check the ETH and rETH balances of an Ethereum 
 
 ## Usage
 
-Run the script with:
+Use the values from the `.env` file without prompts (the default entry point):
 
 ```
-python eth_balance.py
+uv run getreth
 ```
 
-You will be prompted to enter an Ethereum address and the amount of ETH paid. Press Enter without input to use the default values from the .env file.
-
-To use only the values from the .env file without prompts, use the `-e` flag:
+or, equivalently:
 
 ```
-python eth_balance.py -e
+uv run python main.py
+uv run python eth_balance.py -e
+```
+
+You will be prompted to enter an Ethereum address and the amount of ETH paid if you run `eth_balance.py` without the `-e` flag. Press Enter without input to use the default values from the .env file.
+
+```
+uv run python eth_balance.py
 ```
 
 ## Output

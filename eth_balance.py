@@ -1,7 +1,11 @@
 import sys
+from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
+from typing import Optional
 
 from web3 import Web3
+from web3.contract import Contract
+from web3.exceptions import ContractLogicError, Web3Exception
 from dotenv import load_dotenv
 
 # rETH contract address
@@ -11,36 +15,38 @@ RETH_CONTRACT_ADDRESS = "0xae78736Cd615f374D3085123A210448E74Fc6393"
 # are Rocket Pool-specific).
 RETH_ABI = [
     {
-        "constant": True,
         "inputs": [{"name": "_owner", "type": "address"}],
         "name": "balanceOf",
         "outputs": [{"name": "balance", "type": "uint256"}],
+        "stateMutability": "view",
         "type": "function",
     },
     {
-        "constant": True,
         "inputs": [{"name": "_rethAmount", "type": "uint256"}],
         "name": "getEthValue",
         "outputs": [{"name": "ethAmount", "type": "uint256"}],
+        "stateMutability": "view",
         "type": "function",
     },
     {
-        "constant": True,
         "inputs": [],
         "name": "getExchangeRate",
         "outputs": [{"name": "exchangeRate", "type": "uint256"}],
+        "stateMutability": "view",
         "type": "function",
     },
 ]
 
 
-def get_eth_balance(w3, address):
+def get_eth_balance(w3: Web3, address: str) -> Decimal:
     """
     Get the ETH balance of a given Ethereum address.
 
     :param w3: a Web3 instance connected to an Ethereum node
     :param address: Ethereum address as a string
     :return: Balance in ETH as a Decimal
+    :raises ValueError: if the address is not a valid Ethereum address
+    :raises Web3Exception: if the balance lookup fails
     """
     # Check if the address is valid
     if not w3.is_address(address):
@@ -55,7 +61,7 @@ def get_eth_balance(w3, address):
     return balance_eth
 
 
-def get_reth_balance(w3, reth_contract, address):
+def get_reth_balance(w3: Web3, reth_contract: Contract, address: str) -> tuple[Decimal, Decimal, Decimal]:
     """
     Get the rETH balance of a given Ethereum address, its ETH equivalent, and
     the current exchange rate.
@@ -64,6 +70,9 @@ def get_reth_balance(w3, reth_contract, address):
     :param reth_contract: a Contract instance for the rETH token
     :param address: Ethereum address as a string
     :return: Tuple of (rETH balance, ETH equivalent, exchange rate) as Decimals
+    :raises ValueError: if the address is not a valid Ethereum address
+    :raises ContractLogicError: if a contract call reverts
+    :raises Web3Exception: if a contract call fails
     """
     # Check if the address is valid
     if not w3.is_address(address):
@@ -84,7 +93,14 @@ def get_reth_balance(w3, reth_contract, address):
     return balance_reth, eth_equivalent, exchange_rate
 
 
-def _print_report(address, eth_balance, reth_balance, eth_equivalent, exchange_rate, eth_paid):
+def _print_report(
+    address: str,
+    eth_balance: Decimal,
+    reth_balance: Decimal,
+    eth_equivalent: Decimal,
+    exchange_rate: Decimal,
+    eth_paid: Decimal,
+) -> None:
     print(f"The ETH balance of {address} is {eth_balance:.4f} ETH")
     print(f"The rETH balance of {address} is {reth_balance:.4f} rETH")
     print(f"Exchange rate: {exchange_rate}")
@@ -97,10 +113,10 @@ def _print_report(address, eth_balance, reth_balance, eth_equivalent, exchange_r
         if profit_loss >= 0:
             print(f"Profit: {profit_loss:.4f} ETH ({profit_loss_percentage:.2f}%)")
         else:
-            print(f"Loss: {profit_loss:.4f} ETH ({profit_loss_percentage:.2f}%)")
+            print(f"Loss: {abs(profit_loss):.4f} ETH ({profit_loss_percentage:.2f}%)")
 
 
-def main(argv=None):
+def main(argv: Optional[Sequence[str]] = None) -> None:
     """
     Entry point for the ETH/rETH balance checker.
 
@@ -160,8 +176,17 @@ def main(argv=None):
 
     except ValueError as e:
         print(f"Error: {e}")
+    except ContractLogicError as e:
+        print(f"Contract call failed: {e}")
+    except Web3Exception as e:
+        print(f"Web3 error: {e}")
     except Exception as e:
         print(f"An error occurred: {e}")
+
+
+def cli() -> None:
+    """Console-script entry point: runs the balance checker in env mode (-e)."""
+    main(["-e"])
 
 
 if __name__ == "__main__":
