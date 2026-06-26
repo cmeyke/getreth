@@ -1,5 +1,6 @@
 import os
 import sys
+from decimal import Decimal, InvalidOperation
 from web3 import Web3
 from dotenv import load_dotenv
 
@@ -8,11 +9,16 @@ load_dotenv()
 
 # Initialize Web3 with an Ethereum node provider (e.g., Infura)
 infura_url = os.getenv("INFURA_URL")
+if not infura_url:
+    sys.exit("INFURA_URL is not set. Add it to your .env file.")
 w3 = Web3(Web3.HTTPProvider(infura_url))
 
 # Get the default address and ETH paid from .env file
 DEFAULT_ADDRESS = os.getenv("DEFAULT_ADDRESS")
-DEFAULT_ETH_PAID = float(os.getenv("DEFAULT_ETH_PAID", "0"))
+try:
+    DEFAULT_ETH_PAID = Decimal(os.getenv("DEFAULT_ETH_PAID", "0"))
+except InvalidOperation:
+    sys.exit("DEFAULT_ETH_PAID in .env is not a valid number.")
 
 # rETH contract address
 RETH_CONTRACT_ADDRESS = "0xae78736Cd615f374D3085123A210448E74Fc6393"
@@ -51,7 +57,7 @@ def get_eth_balance(address):
     Get the ETH balance of a given Ethereum address.
 
     :param address: Ethereum address as a string
-    :return: Balance in ETH as a float
+    :return: Balance in ETH as a Decimal
     """
     # Check if the address is valid
     if not w3.is_address(address):
@@ -63,15 +69,16 @@ def get_eth_balance(address):
     # Convert Wei to ETH
     balance_eth = w3.from_wei(balance_wei, "ether")
 
-    return float(balance_eth)
+    return balance_eth
 
 
 def get_reth_balance(address):
     """
-    Get the rETH balance of a given Ethereum address and its ETH equivalent.
+    Get the rETH balance of a given Ethereum address, its ETH equivalent, and
+    the current exchange rate.
 
     :param address: Ethereum address as a string
-    :return: Tuple of (rETH balance, ETH equivalent) as floats
+    :return: Tuple of (rETH balance, ETH equivalent, exchange rate) as Decimals
     """
     # Check if the address is valid
     if not w3.is_address(address):
@@ -89,7 +96,7 @@ def get_reth_balance(address):
 
     exchange_rate = reth_contract.functions.getExchangeRate().call()
     exchange_rate = w3.from_wei(exchange_rate, "ether")
-    return float(balance_reth), float(eth_equivalent), float(exchange_rate)
+    return balance_reth, eth_equivalent, exchange_rate
 
 
 if __name__ == "__main__":
@@ -98,6 +105,8 @@ if __name__ == "__main__":
 
     if use_env:
         address = DEFAULT_ADDRESS
+        if not address:
+            sys.exit("DEFAULT_ADDRESS is not set. Add it to your .env file.")
         eth_paid = DEFAULT_ETH_PAID
     else:
         # Example usage
@@ -115,7 +124,11 @@ if __name__ == "__main__":
         eth_paid_input = input(
             "Enter the amount of ETH paid (press Enter to use the default from .env): "
         ).strip()
-        eth_paid = float(eth_paid_input) if eth_paid_input else DEFAULT_ETH_PAID
+        try:
+            eth_paid = Decimal(eth_paid_input) if eth_paid_input else DEFAULT_ETH_PAID
+        except InvalidOperation:
+            print("Invalid ETH paid amount. Please enter a valid number.")
+            sys.exit(1)
 
     try:
         eth_balance = get_eth_balance(address)
