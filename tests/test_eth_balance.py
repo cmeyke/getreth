@@ -84,13 +84,13 @@ def test_get_reth_balance_invalid_address_raises():
 
 # --- get_market_price ----------------------------------------------------
 
-# sqrtPriceX96 encoding of a ~1.1661 ETH/rETH price (from the live pool).
+# sqrtPriceX96 from the live Uniswap V3 0.01% rETH/WETH pool.
 # Expected price is computed at the default decimal context precision (28),
 # which is what get_market_price uses (it does not customize precision).
-_SQRT_PRICE_X96 = 85556015841679429191073031701
-_EXPECTED_PRICE = Decimal("1.166116490583020100000000000")
+_SQRT_PRICE_X96 = 85569339726481144956956941566
+_EXPECTED_PRICE = Decimal("1.166479724224971319008351064")
 _ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
-_POOL_ADDRESS = "0xa4e0faA58465A2D369aa21B3e42d43374c6F9613"
+_POOL_ADDRESS = "0x553e9C493678d8606d6a5ba284643dB2110Df823"
 
 
 def _make_uniswap_factory_pool(*, sqrt_price_x96=_SQRT_PRICE_X96, pool_addr=_POOL_ADDRESS):

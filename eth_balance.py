@@ -18,8 +18,9 @@ WETH_CONTRACT_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
 # market price of rETH in ETH.
 UNISWAP_V3_FACTORY_ADDRESS = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
 
-# Fee tier of the rETH/WETH pool to query (0.05% is the most liquid rETH pool).
-UNISWAP_V3_POOL_FEE = 500
+# Fee tier of the rETH/WETH pool to query (0.01% is the deepest, most
+# manipulation-resistant rETH pool — ~85x more liquidity than the 0.05% tier).
+UNISWAP_V3_POOL_FEE = 100
 
 # ABI for the rETH contract (balanceOf is ERC20; getEthValue/getExchangeRate
 # are Rocket Pool-specific).
