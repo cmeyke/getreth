@@ -48,14 +48,22 @@ uv run getreth
 or, equivalently:
 
 ```
-uv run python main.py
-uv run python eth_balance.py -e
+uv run main.py
+uv run eth_balance.py -e
 ```
 
 You will be prompted to enter an Ethereum address and the amount of ETH paid if you run `eth_balance.py` without the `-e` flag. Press Enter without input to use the default values from the .env file.
 
 ```
-uv run python eth_balance.py
+uv run eth_balance.py
+```
+
+## Tests
+
+Run the test suite with:
+
+```
+uv run pytest
 ```
 
 ## Output
