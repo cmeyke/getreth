@@ -1,11 +1,12 @@
 # Ethereum Balance Checker
 
-This Python script allows you to check the ETH and rETH balances of an Ethereum address, as well as calculate profit/loss based on the amount of ETH paid.
+This Python script allows you to check the ETH and rETH balances of an Ethereum address, as well as calculate profit/loss based on the amount of ETH paid. It also compares the RocketPool exchange rate to the market price of rETH on Uniswap V3.
 
 ## Features
 
 - Check ETH balance of an Ethereum address
 - Check rETH balance and its ETH equivalent
+- Compare the RocketPool exchange rate to the Uniswap V3 market price
 - Calculate profit/loss based on ETH paid
 - Use default values from a .env file or input values at runtime
 - Option to use only .env values with a command-line flag
@@ -72,6 +73,9 @@ The script will display:
 
 - ETH balance
 - rETH balance
+- RocketPool exchange rate
+- Market price of rETH on Uniswap V3
+- Market premium/discount vs the RocketPool rate
 - ETH equivalent of the rETH balance
 - Profit/Loss calculation (if ETH paid amount is provided)
 

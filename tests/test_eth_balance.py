@@ -5,9 +5,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from web3 import Web3
+from web3.exceptions import Web3Exception
 
 import eth_balance
-from eth_balance import get_eth_balance, get_reth_balance, _print_report
+from eth_balance import (
+    get_eth_balance,
+    get_reth_balance,
+    get_market_price,
+    _print_report,
+)
 
 
 def _make_w3(*, get_balance_return=0):
@@ -76,15 +82,62 @@ def test_get_reth_balance_invalid_address_raises():
         get_reth_balance(w3, contract, "0xnope")
 
 
+# --- get_market_price ----------------------------------------------------
+
+# sqrtPriceX96 encoding of a ~1.1661 ETH/rETH price (from the live pool).
+# Expected price is computed at the default decimal context precision (28),
+# which is what get_market_price uses (it does not customize precision).
+_SQRT_PRICE_X96 = 85556015841679429191073031701
+_EXPECTED_PRICE = Decimal("1.166116490583020100000000000")
+_ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+_POOL_ADDRESS = "0xa4e0faA58465A2D369aa21B3e42d43374c6F9613"
+
+
+def _make_uniswap_factory_pool(*, sqrt_price_x96=_SQRT_PRICE_X96, pool_addr=_POOL_ADDRESS):
+    """Build mocked factory + pool contracts for get_market_price."""
+    pool = MagicMock()
+    pool.functions.slot0.return_value.call.return_value = (
+        sqrt_price_x96, 0, 0, 0, 0, 0, False,
+    )
+    factory = MagicMock()
+    factory.functions.getPool.return_value.call.return_value = pool_addr
+    return factory, pool
+
+
+def test_get_market_price_returns_decimal():
+    w3 = _make_w3()
+    factory, pool = _make_uniswap_factory_pool()
+    # w3.eth.contract() must return the factory first, then the pool.
+    w3.eth.contract.side_effect = [factory, pool]
+    price = get_market_price(w3)
+    assert isinstance(price, Decimal)
+    assert price == _EXPECTED_PRICE
+
+
+def test_get_market_price_missing_pool_raises():
+    w3 = _make_w3()
+    factory, _ = _make_uniswap_factory_pool(pool_addr=_ZERO_ADDRESS)
+    w3.eth.contract.side_effect = [factory, MagicMock()]
+    with pytest.raises(Web3Exception, match="No Uniswap V3 rETH/WETH pool"):
+        get_market_price(w3)
+
+
 # --- _print_report -------------------------------------------------------
 
-def _run_report(capsys, eth_paid: Decimal, eth_equivalent: Decimal = Decimal("5")) -> str:
+def _run_report(
+    capsys,
+    eth_paid: Decimal,
+    eth_equivalent: Decimal = Decimal("5"),
+    exchange_rate: Decimal = Decimal("1.1"),
+    market_price: Decimal = Decimal("1.12"),
+) -> str:
     _print_report(
         "0xA5bBB646e8fcD3637B6F11CD5E72083E085905E5",
         Decimal("0"),
         Decimal("10"),
         eth_equivalent,
-        Decimal("1.1"),
+        exchange_rate,
+        market_price,
         eth_paid,
     )
     return capsys.readouterr().out
@@ -106,6 +159,30 @@ def test_print_report_no_profit_block_when_eth_paid_zero(capsys):
     assert "Profit:" not in out
     assert "Loss:" not in out
     assert "ETH paid:" not in out
+
+
+def test_print_report_shows_market_premium(capsys):
+    # market 1.12 vs RocketPool 1.10 -> premium +0.02 (+1.8182%)
+    out = _run_report(
+        capsys,
+        eth_paid=Decimal("0"),
+        exchange_rate=Decimal("1.10"),
+        market_price=Decimal("1.12"),
+    )
+    assert "RocketPool rate:  1.1000000000 ETH/rETH" in out
+    assert "Market price:     1.1200000000 ETH/rETH (Uniswap V3)" in out
+    assert "Market premium:  +0.0200000000 ETH/rETH (+1.8182%)" in out
+
+
+def test_print_report_shows_market_discount(capsys):
+    # market 1.08 vs RocketPool 1.10 -> discount -0.02 (-1.8182%)
+    out = _run_report(
+        capsys,
+        eth_paid=Decimal("0"),
+        exchange_rate=Decimal("1.10"),
+        market_price=Decimal("1.08"),
+    )
+    assert "Market discount: 0.0200000000 ETH/rETH (-1.8182%)" in out
 
 
 # --- module structure ----------------------------------------------------

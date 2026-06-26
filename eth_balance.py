@@ -11,6 +11,16 @@ from dotenv import load_dotenv
 # rETH contract address
 RETH_CONTRACT_ADDRESS = "0xae78736Cd615f374D3085123A210448E74Fc6393"
 
+# WETH (Wrapped Ether) contract address
+WETH_CONTRACT_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+
+# Uniswap V3 factory address; used to look up the rETH/WETH pool for the
+# market price of rETH in ETH.
+UNISWAP_V3_FACTORY_ADDRESS = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+
+# Fee tier of the rETH/WETH pool to query (0.05% is the most liquid rETH pool).
+UNISWAP_V3_POOL_FEE = 500
+
 # ABI for the rETH contract (balanceOf is ERC20; getEthValue/getExchangeRate
 # are Rocket Pool-specific).
 RETH_ABI = [
@@ -32,6 +42,40 @@ RETH_ABI = [
         "inputs": [],
         "name": "getExchangeRate",
         "outputs": [{"name": "exchangeRate", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+]
+
+# Uniswap V3 factory ABI: getPool(tokenA, tokenB, fee) -> pool address
+UNISWAP_V3_FACTORY_ABI = [
+    {
+        "inputs": [
+            {"name": "tokenA", "type": "address"},
+            {"name": "tokenB", "type": "address"},
+            {"name": "fee", "type": "uint24"},
+        ],
+        "name": "getPool",
+        "outputs": [{"name": "pool", "type": "address"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+]
+
+# Uniswap V3 pool ABI: slot0() returns (sqrtPriceX96, tick, ...)
+UNISWAP_V3_POOL_ABI = [
+    {
+        "inputs": [],
+        "name": "slot0",
+        "outputs": [
+            {"name": "sqrtPriceX96", "type": "uint160"},
+            {"name": "tick", "type": "int24"},
+            {"name": "observationIndex", "type": "uint16"},
+            {"name": "observationCardinality", "type": "uint16"},
+            {"name": "observationCardinalityNext", "type": "uint16"},
+            {"name": "feeProtocol", "type": "uint8"},
+            {"name": "unlocked", "type": "bool"},
+        ],
         "stateMutability": "view",
         "type": "function",
     },
@@ -93,17 +137,54 @@ def get_reth_balance(w3: Web3, reth_contract: Contract, address: str) -> tuple[D
     return balance_reth, eth_equivalent, exchange_rate
 
 
+def get_market_price(w3: Web3) -> Decimal:
+    """
+    Get the market price of rETH in ETH from the Uniswap V3 rETH/WETH pool.
+
+    Reads the pool's current sqrtPriceX96 from slot0 and derives the price.
+    rETH is token0 and WETH is token1 (rETH's address sorts before WETH's),
+    so the raw price is WETH per rETH, i.e. ETH per rETH.
+
+    :param w3: a Web3 instance connected to an Ethereum node
+    :return: Market price of rETH in ETH as a Decimal
+    :raises ContractLogicError: if a contract call reverts
+    :raises Web3Exception: if a contract call fails or the pool does not exist
+    """
+    factory = w3.eth.contract(address=UNISWAP_V3_FACTORY_ADDRESS, abi=UNISWAP_V3_FACTORY_ABI)
+    pool_addr = factory.functions.getPool(
+        RETH_CONTRACT_ADDRESS, WETH_CONTRACT_ADDRESS, UNISWAP_V3_POOL_FEE
+    ).call()
+    if int(pool_addr, 16) == 0:
+        raise Web3Exception(
+            f"No Uniswap V3 rETH/WETH pool found for fee tier {UNISWAP_V3_POOL_FEE}"
+        )
+    pool = w3.eth.contract(address=pool_addr, abi=UNISWAP_V3_POOL_ABI)
+    sqrt_price_x96 = pool.functions.slot0().call()[0]
+
+    # price = (sqrtPriceX96 / 2^96)^2, expressed as token1/token0 = WETH/rETH
+    sqrt_price = Decimal(sqrt_price_x96) / Decimal(2**96)
+    return sqrt_price * sqrt_price
+
+
 def _print_report(
     address: str,
     eth_balance: Decimal,
     reth_balance: Decimal,
     eth_equivalent: Decimal,
     exchange_rate: Decimal,
+    market_price: Decimal,
     eth_paid: Decimal,
 ) -> None:
     print(f"The ETH balance of {address} is {eth_balance:.4f} ETH")
     print(f"The rETH balance of {address} is {reth_balance:.4f} rETH")
-    print(f"Exchange rate: {exchange_rate}")
+    print(f"RocketPool rate:  {exchange_rate:.10f} ETH/rETH")
+    print(f"Market price:     {market_price:.10f} ETH/rETH (Uniswap V3)")
+    premium = market_price - exchange_rate
+    premium_pct = (premium / exchange_rate) * 100
+    if premium >= 0:
+        print(f"Market premium:  +{premium:.10f} ETH/rETH (+{premium_pct:.4f}%)")
+    else:
+        print(f"Market discount: {abs(premium):.10f} ETH/rETH ({premium_pct:.4f}%)")
     print(f"The ETH equivalent of the rETH balance is {eth_equivalent:.4f} ETH")
 
     if eth_paid > 0:
@@ -172,7 +253,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     try:
         eth_balance = get_eth_balance(w3, address)
         reth_balance, eth_equivalent, exchange_rate = get_reth_balance(w3, reth_contract, address)
-        _print_report(address, eth_balance, reth_balance, eth_equivalent, exchange_rate, eth_paid)
+        market_price = get_market_price(w3)
+        _print_report(
+            address, eth_balance, reth_balance, eth_equivalent, exchange_rate, market_price, eth_paid
+        )
 
     except ValueError as e:
         print(f"Error: {e}")
